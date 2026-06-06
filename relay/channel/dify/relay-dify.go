@@ -159,9 +159,14 @@ func requestOpenAI2Dify(c *gin.Context, info *relaycommon.RelayInfo, request dto
 					media := mediaContent.GetImageMedia()
 					var file *DifyFile
 					if media.IsRemoteImage() {
-						file.Type = media.MimeType
-						file.TransferMode = "remote_url"
-						file.URL = media.Url
+						// 修复 #2083: 远程图片分支此前未初始化 file，
+						// 导致 file.Type = ... 触发 nil pointer dereference
+						// 而 panic（500: "invalid memory address or nil pointer dereference"）。
+						file = &DifyFile{
+							Type:         media.MimeType,
+							TransferMode: "remote_url",
+							URL:          media.Url,
+						}
 					} else {
 						file = uploadDifyFile(c, info, difyReq.User, mediaContent)
 					}
@@ -223,33 +228,32 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	usage := &dto.Usage{}
 	var nodeToken int
 	helper.SetEventStreamHeaders(c)
-	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var difyResponse DifyChunkChatCompletionResponse
-		err := json.Unmarshal([]byte(data), &difyResponse)
-		if err != nil {
+		if err := json.Unmarshal([]byte(data), &difyResponse); err != nil {
 			common.SysLog("error unmarshalling stream response: " + err.Error())
-			return true
+			sr.Error(err)
+			return
 		}
-		var openaiResponse dto.ChatCompletionsStreamResponse
 		if difyResponse.Event == "message_end" {
 			usage = &difyResponse.MetaData.Usage
-			return false
+			sr.Done()
+			return
 		} else if difyResponse.Event == "error" {
-			return false
-		} else {
-			openaiResponse = *streamResponseDify2OpenAI(difyResponse)
-			if len(openaiResponse.Choices) != 0 {
-				responseText += openaiResponse.Choices[0].Delta.GetContentString()
-				if openaiResponse.Choices[0].Delta.ReasoningContent != nil {
-					nodeToken += 1
-				}
+			sr.Stop(fmt.Errorf("dify error event"))
+			return
+		}
+		openaiResponse := *streamResponseDify2OpenAI(difyResponse)
+		if len(openaiResponse.Choices) != 0 {
+			responseText += openaiResponse.Choices[0].Delta.GetContentString()
+			if openaiResponse.Choices[0].Delta.ReasoningContent != nil {
+				nodeToken += 1
 			}
 		}
-		err = helper.ObjectData(c, openaiResponse)
-		if err != nil {
+		if err := helper.ObjectData(c, openaiResponse); err != nil {
 			common.SysLog(err.Error())
+			sr.Error(err)
 		}
-		return true
 	})
 	helper.Done(c)
 	if usage.TotalTokens == 0 {
