@@ -1,24 +1,50 @@
-FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /build/web
 COPY web/package.json ./
 COPY web/default/package.json ./default/package.json
 RUN mkdir -p classic && echo '{"name":"classic-placeholder","private":true}' > classic/package.json
-RUN bun install
+# Inline bun catalog: references for npm compatibility
+RUN node -e "
+  const root = JSON.parse(require('fs').readFileSync('package.json','utf8'));
+  const catalog = root.catalog || {};
+  const def = JSON.parse(require('fs').readFileSync('default/package.json','utf8'));
+  for (const [k,v] of Object.entries(def.dependencies||{})) {
+    if (v==='catalog:') def.dependencies[k]=catalog[k]||'*';
+  }
+  for (const [k,v] of Object.entries(def.devDependencies||{})) {
+    if (v==='catalog:') def.devDependencies[k]=catalog[k]||'*';
+  }
+  require('fs').writeFileSync('default/package.json', JSON.stringify(def));
+"
+RUN npm install
 COPY ./web/default ./default
 COPY ./VERSION /build/VERSION
-RUN cd default && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
+RUN cd default && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) npm run build
 
-FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder-classic
+FROM node:22-alpine AS builder-classic
 
 WORKDIR /build/web
 COPY web/package.json ./
 COPY web/classic/package.json ./classic/package.json
 RUN mkdir -p default && echo '{"name":"default-placeholder","private":true}' > default/package.json
-RUN bun install
+# Inline bun catalog: references for npm compatibility
+RUN node -e "
+  const root = JSON.parse(require('fs').readFileSync('package.json','utf8'));
+  const catalog = root.catalog || {};
+  const cls = JSON.parse(require('fs').readFileSync('classic/package.json','utf8'));
+  for (const [k,v] of Object.entries(cls.dependencies||{})) {
+    if (v==='catalog:') cls.dependencies[k]=catalog[k]||'*';
+  }
+  for (const [k,v] of Object.entries(cls.devDependencies||{})) {
+    if (v==='catalog:') cls.devDependencies[k]=catalog[k]||'*';
+  }
+  require('fs').writeFileSync('classic/package.json', JSON.stringify(cls));
+"
+RUN npm install
 COPY ./web/classic ./classic
 COPY ./VERSION /build/VERSION
-RUN cd classic && VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
+RUN cd classic && VITE_REACT_APP_VERSION=$(cat /build/VERSION) npm run build
 
 
 FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder2
