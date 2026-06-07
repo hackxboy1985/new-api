@@ -5,18 +5,19 @@ COPY web/package.json ./
 COPY web/default/package.json ./default/package.json
 RUN mkdir -p classic && echo '{"name":"classic-placeholder","private":true}' > classic/package.json
 # Inline bun catalog: references for npm compatibility
-RUN node -e "
-  const root = JSON.parse(require('fs').readFileSync('package.json','utf8'));
+RUN node <<'EOF'
+  const fs = require('fs');
+  const root = JSON.parse(fs.readFileSync('package.json','utf8'));
   const catalog = root.catalog || {};
-  const def = JSON.parse(require('fs').readFileSync('default/package.json','utf8'));
+  const def = JSON.parse(fs.readFileSync('default/package.json','utf8'));
   for (const [k,v] of Object.entries(def.dependencies||{})) {
     if (v==='catalog:') def.dependencies[k]=catalog[k]||'*';
   }
   for (const [k,v] of Object.entries(def.devDependencies||{})) {
     if (v==='catalog:') def.devDependencies[k]=catalog[k]||'*';
   }
-  require('fs').writeFileSync('default/package.json', JSON.stringify(def));
-"
+  fs.writeFileSync('default/package.json', JSON.stringify(def));
+EOF
 RUN npm install
 COPY ./web/default ./default
 COPY ./VERSION /build/VERSION
@@ -29,18 +30,19 @@ COPY web/package.json ./
 COPY web/classic/package.json ./classic/package.json
 RUN mkdir -p default && echo '{"name":"default-placeholder","private":true}' > default/package.json
 # Inline bun catalog: references for npm compatibility
-RUN node -e "
-  const root = JSON.parse(require('fs').readFileSync('package.json','utf8'));
+RUN node <<'EOF'
+  const fs = require('fs');
+  const root = JSON.parse(fs.readFileSync('package.json','utf8'));
   const catalog = root.catalog || {};
-  const cls = JSON.parse(require('fs').readFileSync('classic/package.json','utf8'));
+  const cls = JSON.parse(fs.readFileSync('classic/package.json','utf8'));
   for (const [k,v] of Object.entries(cls.dependencies||{})) {
     if (v==='catalog:') cls.dependencies[k]=catalog[k]||'*';
   }
   for (const [k,v] of Object.entries(cls.devDependencies||{})) {
     if (v==='catalog:') cls.devDependencies[k]=catalog[k]||'*';
   }
-  require('fs').writeFileSync('classic/package.json', JSON.stringify(cls));
-"
+  fs.writeFileSync('classic/package.json', JSON.stringify(cls));
+EOF
 RUN npm install
 COPY ./web/classic ./classic
 COPY ./VERSION /build/VERSION
