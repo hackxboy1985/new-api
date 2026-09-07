@@ -127,6 +127,10 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	if info.ChannelMeta != nil {
 		settings := info.ChannelMeta.ChannelOtherSettings
 
+		common.SysLog(fmt.Sprintf("[Init] asset_upstream_version=%s", settings.AssetUpstreamVersion))
+		common.SysLog(fmt.Sprintf("[Init] doubao_video_generate_path=%s", settings.DoubaoVideoGeneratePath))
+		common.SysLog(fmt.Sprintf("[Init] doubao_video_fetch_path=%s", settings.DoubaoVideoFetchPath))
+
 		// 优先使用显式配置的路径
 		a.videoGeneratePath = settings.DoubaoVideoGeneratePath
 		a.videoFetchPath = settings.DoubaoVideoFetchPath
@@ -137,14 +141,18 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 			upstreamVersion = "gateway" // 默认
 		}
 
+		common.SysLog(fmt.Sprintf("[Init] 使用 upstream_version=%s 进行路径推断", upstreamVersion))
+
 		switch upstreamVersion {
 		case "kwjm":
 			// KWJM 上游使用简化路径
 			if a.videoGeneratePath == "" {
 				a.videoGeneratePath = "/v1/videos/generations"
+				common.SysLog("[Init] 推断 videoGeneratePath=/v1/videos/generations")
 			}
 			if a.videoFetchPath == "" {
 				a.videoFetchPath = "/v1/videos/generations"
+				common.SysLog("[Init] 推断 videoFetchPath=/v1/videos/generations")
 			}
 		case "gateway":
 			fallthrough
@@ -152,11 +160,16 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 			// Gateway 上游使用完整路径
 			if a.videoGeneratePath == "" {
 				a.videoGeneratePath = "/api/v3/contents/generations/tasks"
+				common.SysLog("[Init] 推断 videoGeneratePath=/api/v3/contents/generations/tasks")
 			}
 			if a.videoFetchPath == "" {
 				a.videoFetchPath = "/api/v3/contents/generations/tasks"
+				common.SysLog("[Init] 推断 videoFetchPath=/api/v3/contents/generations/tasks")
 			}
 		}
+
+		common.SysLog(fmt.Sprintf("[Init] 最终 videoGeneratePath=%s", a.videoGeneratePath))
+		common.SysLog(fmt.Sprintf("[Init] 最终 videoFetchPath=%s", a.videoFetchPath))
 	}
 }
 
