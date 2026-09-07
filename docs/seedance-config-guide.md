@@ -30,13 +30,17 @@
   "seedance_asset_base_url": "https://sd.dawnloadai.com:9444",
   "seedance_relay_mode": false,
   "doubao_video_generate_path": "/api/v3/contents/generations/tasks",
-  "doubao_video_fetch_path": "/api/v3/contents/generations/tasks"
+  "doubao_video_fetch_path": "/api/v3/contents/generations/tasks",
+  "doubao_video_always_fetch_upstream": false
 }
 ```
 
 **说明**：
 - 适用于需要自定义路径的场景
 - `seedance_relay_mode`: 是否使用中继模式
+- `doubao_video_always_fetch_upstream`: 是否强制实时查询上游（ARK 格式）
+  - `false`（默认）: 仅当 task.Data 不完整时才查询上游
+  - `true`: 每次查询都实时调用上游获取最新状态
 
 ---
 
@@ -65,13 +69,17 @@
   "kwjm_asset_base_url": "https://kwjm.com",
   "kwjm_asset_model": "sd-video-v2",
   "doubao_video_generate_path": "/v1/videos/generations",
-  "doubao_video_fetch_path": "/v1/videos/generations"
+  "doubao_video_fetch_path": "/v1/videos/generations",
+  "doubao_video_always_fetch_upstream": false
 }
 ```
 
 **说明**：
 - 适用于需要自定义路径的场景
 - `kwjm_asset_model`: 默认模型，可选 `sd-video-v2`、`kw-video-v2-fast` 等
+- `doubao_video_always_fetch_upstream`: 是否强制实时查询上游（ARK 格式）
+  - `false`（默认）: 仅当 task.Data 不完整时才查询上游
+  - `true`: 每次查询都实时调用上游获取最新状态
 
 ---
 
@@ -94,6 +102,35 @@
 | `doubao_video_fetch_path` | `/api/v3/contents/generations/tasks` | `/v1/videos/generations` |
 
 **注意**：手动配置会覆盖自动推断值。
+
+### 可选字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `doubao_video_always_fetch_upstream` | bool | `false` | ARK 格式查询是否强制实时调用上游 |
+| `seedance_relay_mode` | bool | `false` | 是否使用中继模式 |
+
+#### `doubao_video_always_fetch_upstream` 详细说明
+
+此配置仅影响 **ARK 格式**（`GET /api/v3/contents/generations/tasks/{id}`）的查询行为：
+
+**`false`（默认）**：
+- 仅当 `task.Data` 不完整时才调用上游
+- 正常情况下只读数据库，速度快
+- 适合大部分场景，减少上游压力
+
+**`true`（强制实时查询）**：
+- 每次查询都调用上游获取最新状态
+- 适合需要实时状态的场景
+- 会增加上游负载和查询延迟
+
+**注意**：
+- OpenAI Video API 格式（`GET /v1/videos/{id}`）不受此配置影响，永远只读数据库
+- 状态更新由后台轮询服务自动处理（每分钟一次）
+
+**使用场景**：
+- 默认值适合 99% 的场景
+- 仅在需要强制实时状态时才设为 `true`
 
 ---
 
