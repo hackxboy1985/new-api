@@ -419,6 +419,12 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 
 	// OpenAI Video API 格式: 走各 adaptor 的 ConvertToOpenAIVideo
 	if isOpenAIVideoAPI {
+		// 尝试从上游实时拉取最新状态（如果开启了强制查询）
+		if realtimeResp := tryOpenAIVideoRealtimeFetch(originTask, c); len(realtimeResp) > 0 {
+			respBody = realtimeResp
+			return
+		}
+
 		adaptor := GetTaskAdaptor(originTask.Platform)
 		if adaptor == nil {
 			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
@@ -581,6 +587,126 @@ func tryDoubaoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
 	}
 
 	return body
+}
+
+// tryOpenAIVideoRealtimeFetch 尝试从上游实时拉取任务状态（OpenAI Video API 格式）。
+// 默认情况下 OpenAI Video API 格式永不调用上游，总是读取数据库。
+// 可通过渠道配置 openai_video_always_fetch_upstream=true 强制每次都查询上游。
+// 查询成功后更新本地任务状态，并返回 OpenAI Video 格式的响应体。
+func tryOpenAIVideoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
+	// 获取渠道配置
+	channelModel, err := model.GetChannelById(task.ChannelId, true)
+	if err != nil {
+		logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 获取渠道失败: %v", err))
+		return nil
+	}
+
+	// 检查是否开启了强制查询
+	alwaysFetch := false
+	if channelModel.Other != "" {
+		var otherSettings dto.ChannelOtherSettings
+		if err := common.Unmarshal([]byte(channelModel.Other), &otherSettings); err == nil {
+			alwaysFetch = otherSettings.OpenAIVideoAlwaysFetchUpstream
+		}
+	}
+
+	if !alwaysFetch {
+		// 未开启强制查询，使用默认行为（不查询上游）
+		return nil
+	}
+
+	// 强制实时查询模式
+	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 强制实时查询模式，任务 %s 发起上游查询", task.TaskID))
+
+	settings := channelModel.GetSetting()
+	baseURL := constant.ChannelBaseURLs[channelModel.Type]
+	if channelModel.GetBaseURL() != "" {
+		baseURL = channelModel.GetBaseURL()
+	}
+	proxy := settings.Proxy
+	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channelModel.Type)))
+	if adaptor == nil {
+		logger.LogError(c, "[OpenAI Video实时查询] 获取适配器失败")
+		return nil
+	}
+
+	upstreamTaskID := task.GetUpstreamTaskID()
+	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 查询上游任务: %s", upstreamTaskID))
+
+	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
+		"task_id": upstreamTaskID,
+		"action":  task.Action,
+	}, proxy)
+	if err != nil || resp == nil {
+		logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 查询上游失败: %v", err))
+		return nil
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 读取响应失败: %v", err))
+		return nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 上游返回错误: %d, %s", resp.StatusCode, string(body)))
+		return nil
+	}
+
+	// 解析上游响应（Doubao 格式）
+	var upstreamResp map[string]interface{}
+	if err := common.Unmarshal(body, &upstreamResp); err != nil {
+		logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 解析响应失败: %v", err))
+		return nil
+	}
+
+	// 更新本地任务状态
+	snap := task.Snapshot()
+
+	// 提取状态信息
+	if status, ok := upstreamResp["status"].(string); ok {
+		task.Status = model.DoubaoStatusToInternal(status)
+	}
+	if progress, ok := upstreamResp["progress"].(float64); ok {
+		task.Progress = fmt.Sprintf("%.0f", progress)
+	}
+	if videoResults, ok := upstreamResp["video_result"].([]interface{}); ok && len(videoResults) > 0 {
+		if firstResult, ok := videoResults[0].(map[string]interface{}); ok {
+			if url, ok := firstResult["url"].(string); ok {
+				task.PrivateData.ResultURL = url
+			}
+		}
+	}
+
+	// 保存上游完整的原始响应到 Data 字段
+	task.Data = body
+
+	// 保存到数据库
+	if !snap.Equal(task.Snapshot()) {
+		_, err := task.UpdateWithStatus(snap.Status)
+		if err != nil {
+			logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 更新任务失败: %v", err))
+		} else {
+			logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 任务 %s 状态已更新: %s", task.TaskID, task.Status))
+		}
+	}
+
+	// 转换为 OpenAI Video 格式
+	converter, ok := adaptor.(channel.OpenAIVideoConverter)
+	if !ok {
+		logger.LogError(c, "[OpenAI Video实时查询] 适配器不支持 OpenAI Video 格式转换")
+		return nil
+	}
+
+	openAIVideoData, err := converter.ConvertToOpenAIVideo(task)
+	if err != nil {
+		logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 转换为 OpenAI Video 格式失败: %v", err))
+		return nil
+	}
+
+	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 查询成功，返回 OpenAI Video 格式"))
+	return openAIVideoData
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
