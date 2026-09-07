@@ -124,53 +124,60 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
 	a.apiKey = info.ApiKey
-	if info.ChannelMeta != nil {
-		settings := info.ChannelMeta.ChannelOtherSettings
 
-		common.SysLog(fmt.Sprintf("[Init] asset_upstream_version=%s", settings.AssetUpstreamVersion))
-		common.SysLog(fmt.Sprintf("[Init] doubao_video_generate_path=%s", settings.DoubaoVideoGeneratePath))
-		common.SysLog(fmt.Sprintf("[Init] doubao_video_fetch_path=%s", settings.DoubaoVideoFetchPath))
+	common.SysLog(fmt.Sprintf("[Init] 开始初始化 adaptor, ChannelType=%d", info.ChannelType))
 
-		// 优先使用显式配置的路径
-		a.videoGeneratePath = settings.DoubaoVideoGeneratePath
-		a.videoFetchPath = settings.DoubaoVideoFetchPath
-
-		// 如果没有显式配置，根据 asset_upstream_version 自动推断
-		upstreamVersion := settings.AssetUpstreamVersion
-		if upstreamVersion == "" {
-			upstreamVersion = "gateway" // 默认
-		}
-
-		common.SysLog(fmt.Sprintf("[Init] 使用 upstream_version=%s 进行路径推断", upstreamVersion))
-
-		switch upstreamVersion {
-		case "kwjm":
-			// KWJM 上游使用简化路径
-			if a.videoGeneratePath == "" {
-				a.videoGeneratePath = "/v1/videos/generations"
-				common.SysLog("[Init] 推断 videoGeneratePath=/v1/videos/generations")
-			}
-			if a.videoFetchPath == "" {
-				a.videoFetchPath = "/v1/videos/generations"
-				common.SysLog("[Init] 推断 videoFetchPath=/v1/videos/generations")
-			}
-		case "gateway":
-			fallthrough
-		default:
-			// Gateway 上游使用完整路径
-			if a.videoGeneratePath == "" {
-				a.videoGeneratePath = "/api/v3/contents/generations/tasks"
-				common.SysLog("[Init] 推断 videoGeneratePath=/api/v3/contents/generations/tasks")
-			}
-			if a.videoFetchPath == "" {
-				a.videoFetchPath = "/api/v3/contents/generations/tasks"
-				common.SysLog("[Init] 推断 videoFetchPath=/api/v3/contents/generations/tasks")
-			}
-		}
-
-		common.SysLog(fmt.Sprintf("[Init] 最终 videoGeneratePath=%s", a.videoGeneratePath))
-		common.SysLog(fmt.Sprintf("[Init] 最终 videoFetchPath=%s", a.videoFetchPath))
+	if info.ChannelMeta == nil {
+		common.SysLog("[Init] WARNING: info.ChannelMeta 是 nil!")
+		return
 	}
+
+	common.SysLog("[Init] ChannelMeta 不为空，继续初始化")
+	settings := info.ChannelMeta.ChannelOtherSettings
+
+	common.SysLog(fmt.Sprintf("[Init] asset_upstream_version=%s", settings.AssetUpstreamVersion))
+	common.SysLog(fmt.Sprintf("[Init] doubao_video_generate_path=%s", settings.DoubaoVideoGeneratePath))
+	common.SysLog(fmt.Sprintf("[Init] doubao_video_fetch_path=%s", settings.DoubaoVideoFetchPath))
+
+	// 优先使用显式配置的路径
+	a.videoGeneratePath = settings.DoubaoVideoGeneratePath
+	a.videoFetchPath = settings.DoubaoVideoFetchPath
+
+	// 如果没有显式配置，根据 asset_upstream_version 自动推断
+	upstreamVersion := settings.AssetUpstreamVersion
+	if upstreamVersion == "" {
+		upstreamVersion = "gateway" // 默认
+	}
+
+	common.SysLog(fmt.Sprintf("[Init] 使用 upstream_version=%s 进行路径推断", upstreamVersion))
+
+	switch upstreamVersion {
+	case "kwjm":
+		// KWJM 上游使用简化路径
+		if a.videoGeneratePath == "" {
+			a.videoGeneratePath = "/v1/videos/generations"
+			common.SysLog("[Init] 推断 videoGeneratePath=/v1/videos/generations")
+		}
+		if a.videoFetchPath == "" {
+			a.videoFetchPath = "/v1/videos/generations"
+			common.SysLog("[Init] 推断 videoFetchPath=/v1/videos/generations")
+		}
+	case "gateway":
+		fallthrough
+	default:
+		// Gateway 上游使用完整路径
+		if a.videoGeneratePath == "" {
+			a.videoGeneratePath = "/api/v3/contents/generations/tasks"
+			common.SysLog("[Init] 推断 videoGeneratePath=/api/v3/contents/generations/tasks")
+		}
+		if a.videoFetchPath == "" {
+			a.videoFetchPath = "/api/v3/contents/generations/tasks"
+			common.SysLog("[Init] 推断 videoFetchPath=/api/v3/contents/generations/tasks")
+		}
+	}
+
+	common.SysLog(fmt.Sprintf("[Init] 最终 videoGeneratePath=%s", a.videoGeneratePath))
+	common.SysLog(fmt.Sprintf("[Init] 最终 videoFetchPath=%s", a.videoFetchPath))
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
