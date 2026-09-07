@@ -522,6 +522,8 @@ func tryDoubaoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
 
 	upstreamTaskID := task.GetUpstreamTaskID()
 	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 查询上游任务: %s", upstreamTaskID))
+	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] baseURL: %s", baseURL))
+	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 渠道类型: %d", channelModel.Type))
 
 	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
 		"task_id": upstreamTaskID,
@@ -538,6 +540,9 @@ func tryDoubaoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
 		logger.LogError(c, fmt.Sprintf("[Doubao实时查询] 读取响应失败: %v", err))
 		return nil
 	}
+
+	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 上游响应状态码: %d", resp.StatusCode))
+	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 上游响应体: %s", string(body)))
 
 	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 上游响应: %s", string(body)))
 
@@ -632,6 +637,8 @@ func tryOpenAIVideoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
 
 	upstreamTaskID := task.GetUpstreamTaskID()
 	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 查询上游任务: %s", upstreamTaskID))
+	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] baseURL: %s", baseURL))
+	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 渠道类型: %d", channelModel.Type))
 
 	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
 		"task_id": upstreamTaskID,
@@ -648,6 +655,9 @@ func tryOpenAIVideoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
 		logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 读取响应失败: %v", err))
 		return nil
 	}
+
+	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 上游响应状态码: %d", resp.StatusCode))
+	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 上游响应体: %s", string(body)))
 
 	if resp.StatusCode != http.StatusOK {
 		logger.LogError(c, fmt.Sprintf("[OpenAI Video实时查询] 上游返回错误: %d, %s", resp.StatusCode, string(body)))

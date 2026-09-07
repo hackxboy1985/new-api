@@ -322,6 +322,9 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 	uri := fmt.Sprintf("%s%s/%s", baseUrl, fetchPath, taskID)
 
+	common.SysLog(fmt.Sprintf("[FetchTask] 构造的请求URL: %s", uri))
+	common.SysLog(fmt.Sprintf("[FetchTask] baseUrl=%s, fetchPath=%s, taskID=%s", baseUrl, fetchPath, taskID))
+
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, err
@@ -335,7 +338,16 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
-	return client.Do(req)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("[FetchTask] 请求失败: %v", err))
+		return nil, err
+	}
+
+	common.SysLog(fmt.Sprintf("[FetchTask] 响应状态码: %d", resp.StatusCode))
+
+	return resp, nil
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
