@@ -520,6 +520,21 @@ func tryDoubaoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
 		return nil
 	}
 
+	// 初始化 adaptor，加载配置
+	info := &relaycommon.RelayInfo{}
+	c.Set(string(constant.ContextKeyChannelType), channelModel.Type)
+	c.Set(string(constant.ContextKeyChannelId), channelModel.Id)
+	c.Set(string(constant.ContextKeyChannelBaseUrl), baseURL)
+	c.Set(string(constant.ContextKeyChannelKey), channelModel.Key)
+	if channelModel.Other != "" {
+		var otherSettings dto.ChannelOtherSettings
+		if err := common.Unmarshal([]byte(channelModel.Other), &otherSettings); err == nil {
+			c.Set(string(constant.ContextKeyChannelOtherSetting), otherSettings)
+		}
+	}
+	info.InitChannelMeta(c)
+	adaptor.Init(info)
+
 	upstreamTaskID := task.GetUpstreamTaskID()
 	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 查询上游任务: %s", upstreamTaskID))
 	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] baseURL: %s", baseURL))
@@ -634,6 +649,21 @@ func tryOpenAIVideoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
 		logger.LogError(c, "[OpenAI Video实时查询] 获取适配器失败")
 		return nil
 	}
+
+	// 初始化 adaptor，加载配置
+	info := &relaycommon.RelayInfo{}
+	c.Set(string(constant.ContextKeyChannelType), channelModel.Type)
+	c.Set(string(constant.ContextKeyChannelId), channelModel.Id)
+	c.Set(string(constant.ContextKeyChannelBaseUrl), baseURL)
+	c.Set(string(constant.ContextKeyChannelKey), channelModel.Key)
+	if channelModel.Other != "" {
+		var otherSettings dto.ChannelOtherSettings
+		if err := common.Unmarshal([]byte(channelModel.Other), &otherSettings); err == nil {
+			c.Set(string(constant.ContextKeyChannelOtherSetting), otherSettings)
+		}
+	}
+	info.InitChannelMeta(c)
+	adaptor.Init(info)
 
 	upstreamTaskID := task.GetUpstreamTaskID()
 	logger.LogInfo(c, fmt.Sprintf("[OpenAI Video实时查询] 查询上游任务: %s", upstreamTaskID))
