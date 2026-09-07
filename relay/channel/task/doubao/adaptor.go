@@ -132,31 +132,29 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 		a.videoFetchPath = settings.DoubaoVideoFetchPath
 
 		// 如果没有显式配置，根据 asset_upstream_version 自动推断
-		if a.videoGeneratePath == "" || a.videoFetchPath == "" {
-			upstreamVersion := settings.AssetUpstreamVersion
-			if upstreamVersion == "" {
-				upstreamVersion = "gateway" // 默认
-			}
+		upstreamVersion := settings.AssetUpstreamVersion
+		if upstreamVersion == "" {
+			upstreamVersion = "gateway" // 默认
+		}
 
-			switch upstreamVersion {
-			case "kwjm":
-				// KWJM 上游使用简化路径
-				if a.videoGeneratePath == "" {
-					a.videoGeneratePath = "/v1/videos/generations"
-				}
-				if a.videoFetchPath == "" {
-					a.videoFetchPath = "/v1/videos/generations"
-				}
-			case "gateway":
-				fallthrough
-			default:
-				// Gateway 上游使用完整路径
-				if a.videoGeneratePath == "" {
-					a.videoGeneratePath = "/api/v3/contents/generations/tasks"
-				}
-				if a.videoFetchPath == "" {
-					a.videoFetchPath = "/api/v3/contents/generations/tasks"
-				}
+		switch upstreamVersion {
+		case "kwjm":
+			// KWJM 上游使用简化路径
+			if a.videoGeneratePath == "" {
+				a.videoGeneratePath = "/v1/videos/generations"
+			}
+			if a.videoFetchPath == "" {
+				a.videoFetchPath = "/v1/videos/generations"
+			}
+		case "gateway":
+			fallthrough
+		default:
+			// Gateway 上游使用完整路径
+			if a.videoGeneratePath == "" {
+				a.videoGeneratePath = "/api/v3/contents/generations/tasks"
+			}
+			if a.videoFetchPath == "" {
+				a.videoFetchPath = "/api/v3/contents/generations/tasks"
 			}
 		}
 	}
