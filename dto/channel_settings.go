@@ -60,6 +60,10 @@ type ChannelOtherSettings struct {
 	KwjmAssetModel   string `json:"kwjm_asset_model,omitempty"`       // KWJM 默认模型，例如 sd-video-v2
 	// AssetUpstreamVersion 上游版本选择："gateway"（默认）或 "kwjm"
 	AssetUpstreamVersion string `json:"asset_upstream_version,omitempty"`
+	// DoubaoVideoAlwaysFetchUpstream 是否强制实时查询上游（ARK 格式）
+	// true: 每次查询都调用上游（实时获取最新状态）
+	// false（默认）: 仅当 task.Data 不完整时才调用上游
+	DoubaoVideoAlwaysFetchUpstream bool `json:"doubao_video_always_fetch_upstream,omitempty"`
 	// Poster 渠道路径覆盖
 	// PosterApiVersion: 替换默认路径中的版本号，如 "v2" 将 /openapi/v1/... 改为 /openapi/v2/...
 	// PosterEndpoints: 按模型精确覆盖完整路径，优先级高于 PosterApiVersion

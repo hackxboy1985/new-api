@@ -449,32 +449,57 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 }
 
 // tryDoubaoRealtimeFetch 尝试从上游实时拉取 Doubao 任务状态。
-// 仅当 task.Data 字段不完整时（只有 id 和 upstream_task_id）触发实时查询。
+// 默认仅当 task.Data 字段不完整时触发实时查询。
+// 可通过渠道配置 doubao_video_always_fetch_upstream=true 强制每次都查询上游。
 // 查询成功后更新本地任务状态，并返回 Doubao 官方格式的响应体。
 func tryDoubaoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
-	// 检查 task.Data 是否只有基本信息
+	// 获取渠道配置
+	channelModel, err := model.GetChannelById(task.ChannelId, true)
+	if err != nil {
+		logger.LogError(c, fmt.Sprintf("[Doubao实时查询] 获取渠道失败: %v", err))
+		return nil
+	}
+
+	settings := channelModel.GetSetting()
+	alwaysFetch := false
+	if channelModel.Other != "" {
+		var otherSettings dto.ChannelOtherSettings
+		if err := common.Unmarshal([]byte(channelModel.Other), &otherSettings); err == nil {
+			alwaysFetch = otherSettings.DoubaoVideoAlwaysFetchUpstream
+		}
+	}
+
+	// 检查 task.Data 是否完整
 	var taskData map[string]interface{}
 	if err := common.Unmarshal(task.Data, &taskData); err != nil {
 		return nil
 	}
 
-	// 如果 Data 中已有 status 或其他完整字段，则不需要实时查询
+	dataComplete := false
 	if _, hasStatus := taskData["status"]; hasStatus {
-		return nil
+		dataComplete = true
 	}
 	if _, hasModel := taskData["model"]; hasModel {
-		return nil
+		dataComplete = true
 	}
 	if _, hasCreatedAt := taskData["created_at"]; hasCreatedAt {
-		return nil
+		dataComplete = true
 	}
 
-	// Data 不完整，需要实时查询上游
-	logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 任务 %s 的 Data 字段不完整，发起上游查询", task.TaskID))
+	// 判断是否需要查询上游
+	shouldFetch := false
+	if alwaysFetch {
+		// 强制实时查询模式
+		shouldFetch = true
+		logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 强制实时查询模式，任务 %s 发起上游查询", task.TaskID))
+	} else if !dataComplete {
+		// Data 不完整，需要实时查询上游
+		shouldFetch = true
+		logger.LogInfo(c, fmt.Sprintf("[Doubao实时查询] 任务 %s 的 Data 字段不完整，发起上游查询", task.TaskID))
+	}
 
-	channelModel, err := model.GetChannelById(task.ChannelId, true)
-	if err != nil {
-		logger.LogError(c, fmt.Sprintf("[Doubao实时查询] 获取渠道失败: %v", err))
+	if !shouldFetch {
+		// Data 完整且未开启强制查询，不需要实时查询
 		return nil
 	}
 
@@ -482,7 +507,7 @@ func tryDoubaoRealtimeFetch(task *model.Task, c *gin.Context) []byte {
 	if channelModel.GetBaseURL() != "" {
 		baseURL = channelModel.GetBaseURL()
 	}
-	proxy := channelModel.GetSetting().Proxy
+	proxy := settings.Proxy
 	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channelModel.Type)))
 	if adaptor == nil {
 		logger.LogError(c, "[Doubao实时查询] 获取适配器失败")
