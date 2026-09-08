@@ -325,9 +325,20 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	if adaptor == nil {
 		return fmt.Errorf("video adaptor not found")
 	}
+
+	// 解析 ChannelOtherSettings
+	var otherSettings dto.ChannelOtherSettings
+	if cacheGetChannel.Other != "" {
+		if err := common.Unmarshal([]byte(cacheGetChannel.Other), &otherSettings); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("Failed to unmarshal channel other settings: %v", err))
+		}
+	}
+
 	info := &relaycommon.RelayInfo{}
 	info.ChannelMeta = &relaycommon.ChannelMeta{
-		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
+		ChannelType:          cacheGetChannel.Type,
+		ChannelBaseUrl:       cacheGetChannel.GetBaseURL(),
+		ChannelOtherSettings: otherSettings,
 	}
 	info.ApiKey = cacheGetChannel.Key
 	adaptor.Init(info)
