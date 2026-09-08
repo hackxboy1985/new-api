@@ -11,30 +11,46 @@ import (
 
 // GetAssetAdapter 根据用户分组获取素材管理适配器
 func GetAssetAdapter(userGroup string) (AssetAdapter, *model.Channel, error) {
+	common.SysLog(fmt.Sprintf("[GetAssetAdapter] 开始查找分组 '%s' 的渠道", userGroup))
+
 	channels, err := model.GetChannelsByType(0, 500, false, constant.ChannelTypeDoubaoVideo)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query channels failed: %w", err)
 	}
 
+	common.SysLog(fmt.Sprintf("[GetAssetAdapter] 查询到 %d 个 DoubaoVideo 渠道", len(channels)))
+
 	for _, ch := range channels {
+		common.SysLog(fmt.Sprintf("[GetAssetAdapter] 检查渠道 #%d: name=%s, status=%d, group=%s",
+			ch.Id, ch.Name, ch.Status, ch.Group))
+
 		if ch.Status != common.ChannelStatusEnabled {
+			common.SysLog(fmt.Sprintf("[GetAssetAdapter] 渠道 #%d 未启用，跳过", ch.Id))
 			continue
 		}
 		// check group
 		if !isGroupAllowed(ch, userGroup) {
+			common.SysLog(fmt.Sprintf("[GetAssetAdapter] 渠道 #%d 分组不匹配 (需要: %s, 渠道: %s)，跳过",
+				ch.Id, userGroup, ch.Group))
 			continue
 		}
+
+		common.SysLog(fmt.Sprintf("[GetAssetAdapter] 渠道 #%d 分组匹配，获取完整信息", ch.Id))
 
 		// 获取完整渠道信息（包含 key）
 		fullCh, err := model.GetChannelById(ch.Id, true)
 		if err != nil {
+			common.SysLog(fmt.Sprintf("[GetAssetAdapter] 渠道 #%d 获取完整信息失败: %v", ch.Id, err))
 			continue
 		}
 
 		key, _, apiErr := fullCh.GetNextEnabledKey()
 		if apiErr != nil {
+			common.SysLog(fmt.Sprintf("[GetAssetAdapter] 渠道 #%d 没有可用 Key: %v", ch.Id, apiErr))
 			continue
 		}
+
+		common.SysLog(fmt.Sprintf("[GetAssetAdapter] 渠道 #%d Key 可用", ch.Id))
 
 		settings := fullCh.GetOtherSettings()
 
@@ -43,6 +59,8 @@ func GetAssetAdapter(userGroup string) (AssetAdapter, *model.Channel, error) {
 		if version == "" {
 			version = "gateway" // 默认使用 gateway
 		}
+
+		common.SysLog(fmt.Sprintf("[GetAssetAdapter] 渠道 #%d 上游版本: %s", ch.Id, version))
 
 		var adapter AssetAdapter
 
@@ -100,6 +118,7 @@ func GetAssetAdapter(userGroup string) (AssetAdapter, *model.Channel, error) {
 		return adapter, fullCh, nil
 	}
 
+	common.SysLog(fmt.Sprintf("[GetAssetAdapter] 未找到可用渠道，分组: %s", userGroup))
 	return nil, nil, fmt.Errorf("no available asset adapter for group %s", userGroup)
 }
 
