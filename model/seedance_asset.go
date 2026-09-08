@@ -117,13 +117,13 @@ func GetSeedanceAssetByID(id int64, userID int) (*SeedanceAsset, error) {
 
 func GetSeedanceAssetByUpstreamID(upstreamAssetID string, userID int, channelID int) (*SeedanceAsset, error) {
 	var a SeedanceAsset
-	err := DB.Where("upstream_asset_id = ? AND user_id = ? AND channel_id = ? AND deleted_at = 0", upstreamAssetID, userID, channelID).First(&a).Error
+	err := DB.Where("user_id = ? AND deleted_at = 0 AND channel_id = ? AND upstream_asset_id = ?", userID, channelID, upstreamAssetID).First(&a).Error
 	return &a, err
 }
 
 func GetSeedanceAssetBySourceURL(sourceURL string, userID int, channelID int) (*SeedanceAsset, error) {
 	var a SeedanceAsset
-	err := DB.Where("source_url = ? AND user_id = ? AND channel_id = ? AND deleted_at = 0", sourceURL, userID, channelID).Order("id desc").First(&a).Error
+	err := DB.Where("user_id = ? AND deleted_at = 0 AND channel_id = ? AND source_url = ?", userID, channelID, sourceURL).Order("id desc").First(&a).Error
 	return &a, err
 }
 
