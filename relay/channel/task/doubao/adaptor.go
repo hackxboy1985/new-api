@@ -600,7 +600,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.SetProgressStr(originTask.Progress)
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
-	openAIVideo.Model = originTask.Properties.OriginModelName
+
+	// 优先使用上游返回的模型名，如果没有则使用请求时的模型名
+	if dResp.Model != "" {
+		openAIVideo.Model = dResp.Model
+	} else {
+		openAIVideo.Model = originTask.Properties.OriginModelName
+	}
 
 	// Set metadata with all doubao-specific fields
 	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
