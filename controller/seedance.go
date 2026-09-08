@@ -364,13 +364,6 @@ func SeedanceCreateAsset(c *gin.Context) {
 	userID := c.GetInt("id")
 	userGroup := c.GetString("group")
 
-	// 获取适配器
-	adapter, channel, err := service.GetAssetAdapter(userGroup)
-	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-
 	// 解析请求体
 	var req struct {
 		GroupID   string `json:"GroupId"`
@@ -378,9 +371,17 @@ func SeedanceCreateAsset(c *gin.Context) {
 		AssetType string `json:"AssetType"`
 		Name      string `json:"Name"`
 		Force     bool   `json:"Force"` // true=强制重新上传，忽略本地缓存
+		Model     string `json:"Model"` // 可选：指定模型名，用于选择对应渠道
 	}
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		return
+	}
+
+	// 获取适配器（支持根据模型名选择渠道）
+	adapter, channel, err := service.GetAssetAdapterByModel(userGroup, req.Model)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 

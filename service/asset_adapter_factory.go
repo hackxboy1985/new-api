@@ -102,3 +102,121 @@ func GetAssetAdapter(userGroup string) (AssetAdapter, *model.Channel, error) {
 
 	return nil, nil, fmt.Errorf("no available asset adapter for group %s", userGroup)
 }
+
+// GetAssetAdapterByModel 根据用户分组和模型名获取素材管理适配器
+// 如果指定了模型名，优先选择支持该模型的渠道；否则降级为按分组选择
+func GetAssetAdapterByModel(userGroup string, modelName string) (AssetAdapter, *model.Channel, error) {
+	channels, err := model.GetChannelsByType(0, 500, false, constant.ChannelTypeDoubaoVideo)
+	if err != nil {
+		return nil, nil, fmt.Errorf("query channels failed: %w", err)
+	}
+
+	// 如果指定了模型名，优先查找支持该模型的渠道
+	if modelName != "" {
+		for _, ch := range channels {
+			if ch.Status != common.ChannelStatusEnabled {
+				continue
+			}
+			// check group
+			if !isGroupAllowed(ch, userGroup) {
+				continue
+			}
+			// check model
+			if !isModelSupported(ch, modelName) {
+				continue
+			}
+
+			// 获取完整渠道信息（包含 key）
+			fullCh, err := model.GetChannelById(ch.Id, true)
+			if err != nil {
+				continue
+			}
+
+			key, _, apiErr := fullCh.GetNextEnabledKey()
+			if apiErr != nil {
+				continue
+			}
+
+			adapter, adapterErr := createAdapter(fullCh, key)
+			if adapterErr != nil {
+				continue
+			}
+
+			common.SysLog(fmt.Sprintf(
+				"[AssetAdapter] selected channel %d for model '%s' in group '%s'",
+				fullCh.Id, modelName, userGroup,
+			))
+
+			return adapter, fullCh, nil
+		}
+	}
+
+	// 如果没有指定模型或没找到支持该模型的渠道，降级为按分组选择
+	return GetAssetAdapter(userGroup)
+}
+
+// createAdapter 根据渠道配置创建对应的适配器
+func createAdapter(fullCh *model.Channel, key string) (AssetAdapter, error) {
+	settings := fullCh.GetOtherSettings()
+	version := strings.ToLower(settings.AssetUpstreamVersion)
+
+	switch version {
+	case "kwjm":
+		baseURL := settings.KwjmAssetBaseUrl
+		if baseURL == "" {
+			baseURL = fullCh.GetBaseURL()
+		}
+		modelName := settings.KwjmAssetModel
+
+		common.SysLog(fmt.Sprintf(
+			"[AssetAdapter] creating KWJM adapter: channel=%d, url=%s, model=%s",
+			fullCh.Id, baseURL, modelName,
+		))
+
+		return NewKwjmAssetAdapter(
+			strings.TrimRight(baseURL, "/"),
+			key,
+			modelName,
+		), nil
+
+	case "gateway":
+		baseURL := settings.SeedanceAssetBaseUrl
+		relayMode := settings.SeedanceRelayMode
+
+		common.SysLog(fmt.Sprintf(
+			"[AssetAdapter] creating Gateway adapter: channel=%d, url=%s, relay=%v",
+			fullCh.Id, baseURL, relayMode,
+		))
+
+		return NewGatewayAssetAdapter(
+			strings.TrimRight(baseURL, "/"),
+			key,
+			relayMode,
+		), nil
+
+	default:
+		common.SysLog(fmt.Sprintf(
+			"[AssetAdapter] unsupported upstream version '%s' for channel %d, fallback to gateway",
+			version, fullCh.Id,
+		))
+
+		// fallback 到 Gateway
+		baseURL := settings.SeedanceAssetBaseUrl
+		return NewGatewayAssetAdapter(
+			strings.TrimRight(baseURL, "/"),
+			key,
+			settings.SeedanceRelayMode,
+		), nil
+	}
+}
+
+// isModelSupported 检查渠道是否支持指定的模型
+func isModelSupported(ch *model.Channel, modelName string) bool {
+	models := strings.Split(ch.Models, ",")
+	for _, m := range models {
+		if strings.TrimSpace(m) == modelName {
+			return true
+		}
+	}
+	return false
+}
