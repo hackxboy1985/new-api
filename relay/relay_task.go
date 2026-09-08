@@ -404,6 +404,11 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 			// 替换为我们的 public task ID（task.Data 中的 id 是上游 ID）
 			taskData["id"] = originTask.TaskID
 
+			// 替换为用户请求时的模型名（上游返回的是映射后的模型名）
+			if originTask.Properties.OriginModelName != "" {
+				taskData["model"] = originTask.Properties.OriginModelName
+			}
+
 			// 如果 task.Data 中没有 status（刚创建时），使用本地状态并转换为官方格式
 			if _, hasStatus := taskData["status"]; !hasStatus {
 				taskData["status"] = originTask.Status.ToDoubaoStatus()
