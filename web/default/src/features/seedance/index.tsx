@@ -138,7 +138,10 @@ function AssetsTab() {
   const columns = [
     assetColHelper.accessor('id', { header: 'ID', size: 60 }),
     ...(isAdmin
-      ? [assetColHelper.accessor('user_id', { header: t('User ID'), size: 80 })]
+      ? [
+          assetColHelper.accessor('user_id', { header: t('User ID'), size: 80 }),
+          assetColHelper.accessor('channel_id', { header: t('Channel ID'), size: 80 }),
+        ]
       : []),
     assetColHelper.accessor('upstream_asset_id', {
       header: t('Upstream Asset ID'),
