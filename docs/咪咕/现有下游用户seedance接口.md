@@ -30,7 +30,8 @@ POST /api/seedance/assets
 {
   "URL": "https://example.com/image.jpg",
   "AssetType": "Image",
-  "Name": "my-image"
+  "Name": "my-image",
+  "Model": "doubao-seedance-2-0-260128"
 }
 ```
 
@@ -40,9 +41,15 @@ POST /api/seedance/assets
 | `AssetType` | string | 是 | `Image`、`Video` 或 `Audio` |
 | `Name` | string | 否 | 素材名称 |
 | `GroupId` | string | 否 | 指定素材组，不填则自动使用默认组 |
+| `Model` | string | 否 | 指定模型名（如 `doubao-seedance-2-0-260128`），用于精确选择渠道。建议与后续视频生成使用相同模型名 |
 | `Force` | bool | 否 | `true` 时强制重新上传，忽略本地缓存；默认 `false` |
 
 > **幂等性**：相同 URL 已有 `Active` 状态的素材时，直接返回已有素材，不重复上传。设置 `Force: true` 可强制重新上传。
+>
+> **渠道选择**：
+> - 如果指定 `Model` 字段：系统会选择支持该模型的渠道进行上传
+> - 如果不指定 `Model` 字段：系统使用默认渠道（按分组选择第一个可用渠道）
+> - **建议**：如果有多个渠道，建议指定 `Model` 字段，确保素材和视频在同一渠道
 
 **成功响应：**
 
@@ -298,11 +305,11 @@ curl http://open.mints-id.com/v1/videos/task_xxxxxxxx \
 ## 完整示例
 
 ```bash
-# 1. 上传素材
+# 1. 上传素材（推荐指定 Model）
 ASSET=$(curl -s -X POST http://open.mints-id.com/api/seedance/assets \
   -H "Authorization: Bearer sk-xxx" \
   -H "Content-Type: application/json" \
-  -d '{"URL":"https://example.com/photo.jpg","AssetType":"Image","Name":"photo"}')
+  -d '{"URL":"https://example.com/photo.jpg","AssetType":"Image","Name":"photo","Model":"doubao-seedance-2-0-260128"}')
 
 LOCAL_ID=$(echo $ASSET | jq -r '.Result.LocalId')
 ASSET_REF=$(echo $ASSET | jq -r '.Result.AssetRef')
@@ -318,7 +325,7 @@ while true; do
   sleep 3
 done
 
-# 3. 视频生成
+# 3. 视频生成（使用相同模型名）
 curl -X POST http://open.mints-id.com/v1/video/generations \
   -H "Authorization: Bearer sk-xxx" \
   -H "Content-Type: application/json" \
