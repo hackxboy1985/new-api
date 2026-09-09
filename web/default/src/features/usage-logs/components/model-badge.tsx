@@ -72,7 +72,7 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
   if (hasAny(['qwen', 'qwq-'])) {
     return { icon: 'Qwen.Color', label: 'Qwen' }
   }
-  if (hasAny(['doubao-', 'volcengine'])) {
+  if (hasAny(['doubao-', 'volcengine', 'dreamina-', 'seedance-'])) {
     return { icon: 'Doubao.Color', label: 'Doubao' }
   }
   if (hasAny(['moonshot-', 'kimi-'])) {
